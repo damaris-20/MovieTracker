@@ -1,52 +1,82 @@
+// Import required modules
 const express = require('express');
+const mongoose = require('mongoose');
 const cors = require('cors');
+
+// Initialize Express app
 const app = express();
+const PORT = 5000;
 
-// app.use((req, res, next) => {
-//   res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
-//   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-//   next();
-// });
-app.use(cors());
+// Middleware
 app.use(express.json());
-let movies = [
-  { id: 1, title: "Inception", year: 2010,  rating: 4 },
-  { id: 2, title: "The Matrix", year: 1999,  rating: 3 }
-];
+app.use(cors());
 
-app.get('/movies', (req, res) => res.json(movies));
-app.get('/movies/:id', (req, res) => {
-  const movie = movies.find(m => m.id === parseInt(req.params.id));
-  if (!movie) return res.status(404).json({ error: 'Movie not found' });
-  res.json(movie);
-});
-app.post('/movies', (req, res) => {
-  const { title, year } = req.body;
-  if (!title || !year) return res.status(400).json({ error: 'Title and year are required' });
-  const newMovie = {
-    id: movies.length ? movies[movies.length - 1].id + 1 : 1,
-    title,
-    year: parseInt(year)
-  };
-  movies.push(newMovie);
-  res.status(201).json(newMovie);
-});
-app.put('/movies/:id', (req, res) => {
-  const { id } = req.params;
-  const { title, year } = req.body;
-  const movie = movies.find(m => m.id === parseInt(id));
-  if (!movie) return res.status(404).json({ error: 'Movie not found' });
-  if (!title || !year) return res.status(400).json({ error: 'Title and year are required' });
-  movie.title = title;
-  movie.year = parseInt(year);
-  res.json(movie);
-});
-app.delete('/movies/:id', (req, res) => {
-  const { id } = req.params;
-  const index = movies.findIndex(m => m.id === parseInt(id));
-  if (index === -1) return res.status(404).json({ error: 'Movie not found' });
-  movies.splice(index, 1);
-  res.status(204).send();
+// Connect to MongoDB
+mongoose.connect('mongodb://localhost:27017/bookstore', {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(() => console.log('MongoDB Connected'))
+  .catch(err => console.log(err));
+
+// Define Book Schema & Model
+const bookSchema = new mongoose.Schema({
+    title: String,
+    author: String,
+    description: String,
+    price: Number,
+    publishedYear: Number
 });
 
-app.listen(3001, () => console.log('Server running on port 3001'));
+const Book = mongoose.model('Book', bookSchema);
+
+// CRUD Routes
+app.post('/books', async (req, res) => {
+    try {
+        const newBook = new Book(req.body);
+        await newBook.save();
+        res.status(201).json(newBook);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+app.get('/books', async (req, res) => {
+    try {
+        const books = await Book.find();
+        res.json(books);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/books/:id', async (req, res) => {
+    try {
+        const book = await Book.findById(req.params.id);
+        res.json(book);
+    } catch (error) {
+        res.status(404).json({ error: 'Book not found' });
+    }
+});
+
+app.put('/books/:id', async (req, res) => {
+    try {
+        const updatedBook = await Book.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(updatedBook);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+app.delete('/books/:id', async (req, res) => {
+    try {
+        await Book.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Book deleted' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
